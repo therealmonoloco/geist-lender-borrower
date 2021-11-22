@@ -12,7 +12,7 @@ def test_increase_costs(
     yvault,
     vdToken,
     aToken,
-    AaveLibrary,
+    GeistLibrary,
 ):
     if token.symbol() == "WETH":
         deposit_amount = 500 * (10 ** token.decimals())
@@ -49,7 +49,6 @@ def test_increase_costs(
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
     # to offset interest rates and be able to repay full debt (assuming we were able to generate profit before lowering acceptableCosts)
@@ -73,7 +72,7 @@ def test_increase_costs(
     tx = strategy.harvest({"from": gov})
     assert previousDebt > vdToken.balanceOf(strategy)
 
-    d = AaveLibrary.calcMaxDebt(borrow_token, strategy.acceptableCostsRay()).dict()
+    d = GeistLibrary.calcMaxDebt(borrow_token, strategy.acceptableCostsRay()).dict()
     currentDebt = d["currentProtocolDebt"]
     maxDebt = d["maxProtocolDebt"]
 
@@ -94,7 +93,6 @@ def test_increase_costs(
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
 

@@ -16,7 +16,7 @@ def test_clone(
     yvault,
     cloner,
 ):
-    pd_provider = Contract("0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d")
+    pd_provider = Contract("0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3")
     a_provider = Contract(pd_provider.ADDRESSES_PROVIDER())
     lp = Contract(a_provider.getLendingPool())
     vault_snx = Contract("0xF29AE508698bDeF169B89834F76704C3B205aedf")
@@ -46,13 +46,8 @@ def test_clone(
         False,  # snx is not incentivised
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
-
-    uniswap = Contract("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
-    cloned_strategy.switchDex(True, {"from": gov})
-    assert cloned_strategy.router() == uniswap
 
     # should fail due to already initialized
     with reverts():

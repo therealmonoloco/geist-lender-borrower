@@ -15,7 +15,6 @@ def test_max_borrow(vault, strategy, gov, token, token_whale, vdToken, borrow_to
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
     strategy.harvest({"from": gov})
@@ -31,7 +30,6 @@ def test_max_borrow(vault, strategy, gov, token, token_whale, vdToken, borrow_to
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
     strategy.harvest({"from": gov})

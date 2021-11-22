@@ -60,7 +60,7 @@ def test_borrow_token_transfer_increments_yshares(
 
 
 def test_borrow_token_transfer_increments_profits(
-    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov, AaveLibrary
+    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov, GeistLibrary
 ):
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(500_000 * (10 ** token.decimals()), {"from": token_whale})
@@ -72,8 +72,8 @@ def test_borrow_token_transfer_increments_profits(
     borrow_token.transfer(strategy, amount, {"from": borrow_whale})
     strategy.harvest({"from": gov})
 
-    transferInEth = AaveLibrary.toETH(amount, borrow_token)
-    transferInWant = AaveLibrary.fromETH(transferInEth, token)
+    transferInEth = GeistLibrary.toETH(amount, borrow_token)
+    transferInWant = GeistLibrary.fromETH(transferInEth, token)
 
     chain.sleep(60)  # wait a minute!
     chain.mine(1)
