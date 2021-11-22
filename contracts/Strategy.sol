@@ -68,10 +68,12 @@ contract Strategy is BaseStrategy {
     IERC20 internal investmentToken;
 
     // SpookySwap router
-    ISwap internal constant router = ISwap(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
+    ISwap internal constant router =
+        ISwap(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
 
     address internal constant WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
-    address internal constant GEIST = 0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d;
+    address internal constant GEIST =
+        0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d;
 
     uint256 internal minThreshold;
     uint256 public maxLoss;
@@ -163,7 +165,7 @@ contract Strategy is BaseStrategy {
 
         strategyName = _strategyName;
 
-        // Set health check 
+        // Set health check
         healthCheck = 0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0;
     }
 
@@ -537,38 +539,35 @@ contract Strategy is BaseStrategy {
 
     function _claimRewards() internal {
         // Nothing to claim if no token is incentivized
-        if (! isInvestmentTokenIncentivised && ! isWantIncentivised) {
+        if (!isInvestmentTokenIncentivised && !isWantIncentivised) {
             return;
         }
 
-            // claim rewards
-            // only add to assets those assets that are incentivised
-            address[] memory assets;
-            if (isInvestmentTokenIncentivised && isWantIncentivised) {
-                assets = new address[](2);
-                assets[0] = address(aToken);
-                assets[1] = address(variableDebtToken);
-            } else if (isInvestmentTokenIncentivised) {
-                assets = new address[](1);
-                assets[0] = address(variableDebtToken);
-            } else if (isWantIncentivised) {
-                assets = new address[](1);
-                assets[0] = address(aToken);
-            }
+        // claim rewards
+        // only add to assets those assets that are incentivised
+        address[] memory assets;
+        if (isInvestmentTokenIncentivised && isWantIncentivised) {
+            assets = new address[](2);
+            assets[0] = address(aToken);
+            assets[1] = address(variableDebtToken);
+        } else if (isInvestmentTokenIncentivised) {
+            assets = new address[](1);
+            assets[0] = address(variableDebtToken);
+        } else if (isWantIncentivised) {
+            assets = new address[](1);
+            assets[0] = address(aToken);
+        }
 
-            _incentivesController().claim(
-                address(this),
-                assets
-            );
+        _incentivesController().claim(address(this), assets);
 
-            // Exit with 50% penalty
-            IMultiFeeDistribution(_incentivesController().rewardMinter()).exit();
+        // Exit with 50% penalty
+        IMultiFeeDistribution(_incentivesController().rewardMinter()).exit();
 
-            // a minimum balance of 0.01 GEIST is required
-            uint256 geistBalance = IERC20(GEIST).balanceOf(address(this));
-            if (geistBalance > 1e15) {
-                _sellAForB(geistBalance, address(GEIST), address(want));
-            }
+        // a minimum balance of 0.01 GEIST is required
+        uint256 geistBalance = IERC20(GEIST).balanceOf(address(this));
+        if (geistBalance > 1e15) {
+            _sellAForB(geistBalance, address(GEIST), address(want));
+        }
     }
 
     //withdraw an amount including any want balance

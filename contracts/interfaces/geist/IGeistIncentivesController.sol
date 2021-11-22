@@ -4,15 +4,24 @@ pragma solidity 0.6.12;
 interface IGeistIncentivesController {
     function addPool(address _token, uint256 _allocPoint) external;
 
-    function batchUpdateAllocPoint(address[] memory _tokens, uint256[] memory _allocPoints) external;
+    function batchUpdateAllocPoint(
+        address[] memory _tokens,
+        uint256[] memory _allocPoints
+    ) external;
 
     function claim(address _user, address[] memory _tokens) external;
 
     function claimReceiver(address) external view returns (address);
 
-    function claimableReward(address _user, address[] memory _tokens) external view returns (uint256[] memory);
+    function claimableReward(address _user, address[] memory _tokens)
+        external
+        view
+        returns (uint256[] memory);
 
-    function emissionSchedule(uint256) external view returns (uint128 startTimeOffset, uint128 rewardsPerSecond);
+    function emissionSchedule(uint256)
+        external
+        view
+        returns (uint128 startTimeOffset, uint128 rewardsPerSecond);
 
     function handleAction(
         address _user,
@@ -61,5 +70,8 @@ interface IGeistIncentivesController {
 
     function transferOwnership(address newOwner) external;
 
-    function userInfo(address, address) external view returns (uint256 amount, uint256 rewardDebt);
+    function userInfo(address, address)
+        external
+        view
+        returns (uint256 amount, uint256 rewardDebt);
 }
