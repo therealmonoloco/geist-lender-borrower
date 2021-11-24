@@ -819,16 +819,18 @@ contract Strategy is BaseStrategy {
         uint256 amtInUSD = _toETH(_amtInWei, address(WFTM));
 
         // One unit of want in USD
-        uint256 wantInUsd =
+        uint256 wantInUSD =
             _toETH(
-                uint256(10)**uint256(IOptionalERC20(asset).decimals()),
+                uint256(10)**uint256(IOptionalERC20(address(want)).decimals()),
                 address(want)
             );
 
         return
-            amtInUsd
-                .mul(uint256(10)**uint256(IOptionalERC20(asset).decimals()))
-                .div(wantInUsd);
+            amtInUSD
+                .mul(
+                uint256(10)**uint256(IOptionalERC20(address(want)).decimals())
+            )
+                .div(wantInUSD);
     }
 
     function _fromETH(uint256 _amount, address asset)
