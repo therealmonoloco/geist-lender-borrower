@@ -451,15 +451,6 @@ contract Strategy is BaseStrategy {
         // nothing to do since debt cannot be migrated
     }
 
-    function harvestTrigger(uint256 callCost)
-        public
-        view
-        override
-        returns (bool)
-    {
-        return super.harvestTrigger(_fromETH(callCost, address(want)));
-    }
-
     function tendTrigger(uint256 callCost) public view override returns (bool) {
         // we adjust position if:
         // 1. LTV ratios are not in the HEALTHY range (either we take on more debt or repay debt)
