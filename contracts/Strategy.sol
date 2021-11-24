@@ -302,6 +302,7 @@ contract Strategy is BaseStrategy {
 
             uint256 maxTotalBorrowETH =
                 _toETH(maxTotalBorrowIT, address(investmentToken));
+
             if (totalDebtETH.add(amountToBorrowETH) > maxTotalBorrowETH) {
                 amountToBorrowETH = maxTotalBorrowETH > totalDebtETH
                     ? maxTotalBorrowETH.sub(totalDebtETH)
@@ -801,13 +802,6 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        if (
-            _amount == 0 ||
-            _amount == type(uint256).max ||
-            address(asset) == address(WFTM) // 1:1 change
-        ) {
-            return _amount;
-        }
         return GeistLenderBorrowerLib.toETH(_amount, asset);
     }
 
@@ -817,7 +811,24 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256)
     {
-        return _fromETH(_amtInWei, address(want));
+        if (address(want) == address(WFTM)) {
+            return _amtInWei;
+        }
+
+        // _amtInWei denominated in USD
+        uint256 amtInUSD = _toETH(_amtInWei, address(WFTM));
+
+        // One unit of want in USD
+        uint256 wantInUsd =
+            _toETH(
+                uint256(10)**uint256(IOptionalERC20(asset).decimals()),
+                address(want)
+            );
+
+        return
+            amtInUsd
+                .mul(uint256(10)**uint256(IOptionalERC20(asset).decimals()))
+                .div(wantInUsd);
     }
 
     function _fromETH(uint256 _amount, address asset)
@@ -825,13 +836,6 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        if (
-            _amount == 0 ||
-            _amount == type(uint256).max ||
-            address(asset) == address(WFTM) // 1:1 change
-        ) {
-            return _amount;
-        }
         return GeistLenderBorrowerLib.fromETH(_amount, asset);
     }
 

@@ -73,6 +73,10 @@ library GeistLenderBorrowerLib {
         view
         returns (uint256)
     {
+        if (_amount == 0 || _amount == type(uint256).max) {
+            return _amount;
+        }
+
         return
             _amount.mul(priceOracle().getAssetPrice(asset)).div(
                 uint256(10)**uint256(IOptionalERC20(asset).decimals())
@@ -84,6 +88,10 @@ library GeistLenderBorrowerLib {
         view
         returns (uint256)
     {
+        if (_amount == 0 || _amount == type(uint256).max) {
+            return _amount;
+        }
+
         return
             _amount
                 .mul(uint256(10)**uint256(IOptionalERC20(asset).decimals()))
