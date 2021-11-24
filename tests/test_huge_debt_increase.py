@@ -35,6 +35,6 @@ def test_huge_debt(vault, strategy, gov, token, token_whale):
 
 
 def get_lending_pool():
-    pd_provider = Contract("0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d")
+    pd_provider = Contract("0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3")
     a_provider = Contract(pd_provider.ADDRESSES_PROVIDER())
     return Contract(a_provider.getLendingPool())
