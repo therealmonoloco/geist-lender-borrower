@@ -19,18 +19,20 @@ def test_clone(
     pd_provider = Contract("0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3")
     a_provider = Contract(pd_provider.ADDRESSES_PROVIDER())
     lp = Contract(a_provider.getLendingPool())
-    vault_snx = Contract("0xF29AE508698bDeF169B89834F76704C3B205aedf")
-    snx = Contract(vault_snx.token())
-    snx_whale = "0xA1d7b2d891e3A1f9ef4bBC5be20630C2FEB1c470"
-    clone_tx = cloner.cloneAaveLenderBorrower(
+
+    vault_usdc = Contract("0xEF0210eB96c7EB36AF8ed1c20306462764935607")
+    usdc = Contract(vault_usdc.token())
+    usdc_whale = "0x2dd7C9371965472E5A5fD28fbE165007c61439E1"
+
+    clone_tx = cloner.cloneGeistLenderBorrower(
         vault,
         strategist,
         rewards,
         keeper,
-        vault_snx,
+        vault_usdc,
         True,
-        False,
-        "StrategyAaveLender" + token.symbol() + "BorrowerSNX",
+        True,
+        "StrategyGeistLender" + token.symbol() + "BorrowerUSDC",
     )
     cloned_strategy = Contract.from_abi(
         "Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi
@@ -43,7 +45,7 @@ def test_clone(
         0,
         strategy.maxTotalBorrowIT(),
         strategy.isWantIncentivised(),
-        False,  # snx is not incentivised
+        True,  # USDC is not incentivised
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
         {"from": strategy.strategist()},
@@ -51,7 +53,7 @@ def test_clone(
 
     # should fail due to already initialized
     with reverts():
-        strategy.initialize(vault, vault_snx, "NameRevert", {"from": gov})
+        strategy.initialize(vault, vault_usdc, "NameRevert", {"from": gov})
 
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     vault.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
@@ -59,21 +61,21 @@ def test_clone(
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(10 * (10 ** token.decimals()), {"from": token_whale})
     strategy = cloned_strategy
-    print_debug(vault_snx, strategy, lp)
+    print_debug(vault_usdc, strategy, lp)
     tx = strategy.harvest({"from": gov})
-    assert vault_snx.balanceOf(strategy) > 0
-    print_debug(vault_snx, strategy, lp)
+    assert vault_usdc.balanceOf(strategy) > 0
+    print_debug(vault_usdc, strategy, lp)
 
     # Sleep for 2 days
     chain.sleep(60 * 60 * 24 * 2)
     chain.mine(1)
 
     # Send some profit to yvETH
-    snx.transfer(vault_snx, 1_000 * (10 ** snx.decimals()), {"from": snx_whale})
+    usdc.transfer(vault_usdc, 1_000 * (10 ** usdc.decimals()), {"from": usdc_whale})
 
     # TODO: check profits before and after
     strategy.harvest({"from": gov})
-    print_debug(vault_snx, strategy, lp)
+    print_debug(vault_usdc, strategy, lp)
 
     # We should have profit after getting some profit from yvETH
     assert vault.strategies(strategy).dict()["totalGain"] > 0
@@ -82,29 +84,29 @@ def test_clone(
     # Enough sleep for profit to be free
     chain.sleep(60 * 60 * 10)
     chain.mine(1)
-    print_debug(vault_snx, strategy, lp)
+    print_debug(vault_usdc, strategy, lp)
 
     # why do we have losses? because of interests
     with reverts():
         vault.withdraw()
 
     # so we send profits
-    snx.transfer(vault_snx, Wei("30_000 ether"), {"from": snx_whale})
+    usdc.transfer(vault_usdc, 30_000 * (10 ** usdc.decimals()), {"from": usdc_whale})
     vault.withdraw({"from": token_whale})
 
 
 def test_clone_of_clone(vault, strategist, rewards, keeper, strategy, cloner):
-    vault_snx = Contract("0xF29AE508698bDeF169B89834F76704C3B205aedf")
+    vault_usdc = Contract("0xEF0210eB96c7EB36AF8ed1c20306462764935607")
 
-    clone_tx = cloner.cloneAaveLenderBorrower(
+    clone_tx = cloner.cloneGeistLenderBorrower(
         vault,
         strategist,
         rewards,
         keeper,
-        vault_snx,
+        vault_usdc,
         True,
-        False,
-        "StrategyAaveLenderWBTCBorrowerSNX",
+        True,
+        "StrategyGeistLenderWBTCBorrowerSNX",
     )
     cloned_strategy = Contract.from_abi(
         "Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi
