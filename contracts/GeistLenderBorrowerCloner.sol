@@ -42,7 +42,7 @@ contract GeistLenderBorrowerCloner {
         return "Yearn-GeistLenderBorrowerCloner@0.4.3";
     }
 
-    function cloneAaveLenderBorrower(
+    function cloneGeistLenderBorrower(
         address _vault,
         address _strategist,
         address _rewards,
