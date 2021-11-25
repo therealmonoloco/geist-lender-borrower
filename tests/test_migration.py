@@ -33,7 +33,7 @@ def test_migration(
 
     # Deploy new Strategy and migrate
     strategy2 = Strategy.at(
-        cloner.cloneAaveLenderBorrower(
+        cloner.cloneGeistLenderBorrower(
             vault,
             strategist,
             strategist,
