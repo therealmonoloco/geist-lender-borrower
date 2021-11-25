@@ -5,18 +5,16 @@ pragma experimental ABIEncoderV2;
 import "./aave/DataTypes.sol";
 import "../interfaces/aave/IReserveInterestRateStrategy.sol";
 import "../interfaces/aave/ILendingPool.sol";
-import "../interfaces/aave/IStakedAave.sol";
 import "../interfaces/aave/IPriceOracle.sol";
 import "../interfaces/aave/IAToken.sol";
 import "../interfaces/aave/IVariableDebtToken.sol";
-import "../interfaces/IBaseFee.sol";
 import "../interfaces/IOptionalERC20.sol";
 
 import "../interfaces/aave/IProtocolDataProvider.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../WadRayMath.sol";
 
-library AaveLenderBorrowerLib {
+library GeistLenderBorrowerLib {
     using SafeMath for uint256;
     using WadRayMath for uint256;
     struct CalcMaxDebtLocalVars {
@@ -38,10 +36,8 @@ library AaveLenderBorrowerLib {
     }
 
     uint256 internal constant MAX_BPS = 10_000;
-    IBaseFee internal constant baseFeeProvider =
-        IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
     IProtocolDataProvider public constant protocolDataProvider =
-        IProtocolDataProvider(0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d);
+        IProtocolDataProvider(0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3);
 
     function lendingPool() public view returns (ILendingPool) {
         return
@@ -62,13 +58,13 @@ library AaveLenderBorrowerLib {
         IVariableDebtToken variableDebtToken,
         bool isWantIncentivised,
         bool isInvestmentTokenIncentivised
-    ) public view returns (IAaveIncentivesController) {
+    ) public view returns (IGeistIncentivesController) {
         if (isWantIncentivised) {
             return aToken.getIncentivesController();
         } else if (isInvestmentTokenIncentivised) {
             return variableDebtToken.getIncentivesController();
         } else {
-            return IAaveIncentivesController(0);
+            return IGeistIncentivesController(0);
         }
     }
 
@@ -77,6 +73,10 @@ library AaveLenderBorrowerLib {
         view
         returns (uint256)
     {
+        if (_amount == 0 || _amount == type(uint256).max) {
+            return _amount;
+        }
+
         return
             _amount.mul(priceOracle().getAssetPrice(asset)).div(
                 uint256(10)**uint256(IOptionalERC20(asset).decimals())
@@ -88,6 +88,10 @@ library AaveLenderBorrowerLib {
         view
         returns (uint256)
     {
+        if (_amount == 0 || _amount == type(uint256).max) {
+            return _amount;
+        }
+
         return
             _amount
                 .mul(uint256(10)**uint256(IOptionalERC20(asset).decimals()))
@@ -235,41 +239,20 @@ library AaveLenderBorrowerLib {
             );
     }
 
-    function checkCooldown(
-        bool isWantIncentivised,
-        bool isInvestmentTokenIncentivised,
-        address stkAave
-    ) external view returns (bool) {
-        if (!isWantIncentivised && !isInvestmentTokenIncentivised) {
-            return false;
-        }
-
-        uint256 cooldownStartTimestamp =
-            IStakedAave(stkAave).stakersCooldowns(address(this));
-        uint256 COOLDOWN_SECONDS = IStakedAave(stkAave).COOLDOWN_SECONDS();
-        uint256 UNSTAKE_WINDOW = IStakedAave(stkAave).UNSTAKE_WINDOW();
-        return
-            cooldownStartTimestamp != 0 &&
-            block.timestamp > cooldownStartTimestamp.add(COOLDOWN_SECONDS) &&
-            block.timestamp <=
-            cooldownStartTimestamp.add(COOLDOWN_SECONDS).add(UNSTAKE_WINDOW);
-    }
-
     function shouldRebalance(
         address investmentToken,
         uint256 acceptableCostsRay,
         uint256 targetLTV,
         uint256 warningLTV,
         uint256 totalCollateralETH,
-        uint256 totalDebtETH,
-        uint256 maxGasPriceToTend
+        uint256 totalDebtETH
     ) external view returns (bool) {
         uint256 currentLTV = totalDebtETH.mul(MAX_BPS).div(totalCollateralETH);
 
         (uint256 currentProtocolDebt, uint256 maxProtocolDebt, ) =
             calcMaxDebt(investmentToken, acceptableCostsRay);
 
-        // If we are in danger zone then repay debt regardless of the current gas price
+        // Repay debt if we are in danger zone
         if (currentLTV > warningLTV) {
             return true;
         }
@@ -280,7 +263,7 @@ library AaveLenderBorrowerLib {
                 targetLTV.sub(currentLTV) > 1000) || // WE NEED TO TAKE ON MORE DEBT (we need a 10p.p (1000bps) difference)
             (currentProtocolDebt > maxProtocolDebt) // UNHEALTHY BORROWING COSTS
         ) {
-            return baseFeeProvider.basefee_global() <= maxGasPriceToTend;
+            return true;
         }
 
         // no call to super.tendTrigger as it would return false

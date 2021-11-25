@@ -13,19 +13,20 @@ import {
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./WadRayMath.sol";
-import "./libraries/AaveLenderBorrowerLib.sol";
+import "./libraries/GeistLenderBorrowerLib.sol";
 
 import "./interfaces/ISwap.sol";
 import "./interfaces/IVault.sol";
 import "./interfaces/aave/IAToken.sol";
 import "./interfaces/IOptionalERC20.sol";
-import "./interfaces/aave/IStakedAave.sol";
 import "./interfaces/aave/IPriceOracle.sol";
 import "./interfaces/aave/ILendingPool.sol";
 import "./interfaces/aave/IVariableDebtToken.sol";
 import "./interfaces/aave/IProtocolDataProvider.sol";
-import "./interfaces/aave/IAaveIncentivesController.sol";
 import "./interfaces/aave/IReserveInterestRateStrategy.sol";
+
+import "./interfaces/geist/IGeistIncentivesController.sol";
+import "./interfaces/geist/IMultiFeeDistribution.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -66,25 +67,16 @@ contract Strategy is BaseStrategy {
     IVault public yVault;
     IERC20 internal investmentToken;
 
-    ISwap public router;
+    // SpookySwap router
+    ISwap internal constant router =
+        ISwap(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
 
-    IStakedAave internal constant stkAave =
-        IStakedAave(0x4da27a545c0c5B758a6BA100e3a049001de870f5);
-
-    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant AAVE = 0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9;
-
-    // SushiSwap router
-    ISwap internal constant sushiswapRouter =
-        ISwap(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
-
-    // Uniswap router
-    ISwap internal constant uniswapRouter =
-        ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    address internal constant WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
+    address internal constant GEIST =
+        0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d;
 
     uint256 internal minThreshold;
     uint256 public maxLoss;
-    uint256 public maxGasPriceToTend;
     string internal strategyName;
 
     event RepayDebt(uint256 repayAmount, uint256 previousDebtBalance);
@@ -133,8 +125,7 @@ contract Strategy is BaseStrategy {
         bool _isWantIncentivised,
         bool _isInvestmentTokenIncentivised,
         bool _leaveDebtBehind,
-        uint256 _maxLoss,
-        uint256 _maxGasPriceToTend
+        uint256 _maxLoss
     ) external onlyEmergencyAuthorized {
         require(
             _warningLTVMultiplier <= MAX_MULTIPLIER &&
@@ -148,19 +139,9 @@ contract Strategy is BaseStrategy {
         isWantIncentivised = _isWantIncentivised;
         isInvestmentTokenIncentivised = _isInvestmentTokenIncentivised;
         leaveDebtBehind = _leaveDebtBehind;
-        maxGasPriceToTend = _maxGasPriceToTend;
 
         require(_maxLoss <= 10_000);
         maxLoss = _maxLoss;
-    }
-
-    // Allow switching between Uniswap and SushiSwap
-    function switchDex(bool isUniswap) external onlyVaultManagers {
-        if (isUniswap) {
-            router = uniswapRouter;
-        } else {
-            router = sushiswapRouter;
-        }
     }
 
     function _initializeThis(address _yVault, string memory _strategyName)
@@ -182,13 +163,10 @@ contract Strategy is BaseStrategy {
         variableDebtToken = IVariableDebtToken(_variableDebtToken);
         minThreshold = (10**(yVault.decimals())).div(100); // 0.01 minThreshold
 
-        // Set default router to SushiSwap
-        router = sushiswapRouter;
-
         strategyName = _strategyName;
 
-        // Set health check to health.ychad.eth
-        healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
+        // Set health check
+        healthCheck = 0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0;
     }
 
     function initialize(
@@ -296,7 +274,7 @@ contract Strategy is BaseStrategy {
             uint256 maxProtocolDebt,
             uint256 targetUtilisationRay
         ) =
-            AaveLenderBorrowerLib.calcMaxDebt(
+            GeistLenderBorrowerLib.calcMaxDebt(
                 address(investmentToken),
                 acceptableCostsRay
             );
@@ -324,6 +302,7 @@ contract Strategy is BaseStrategy {
 
             uint256 maxTotalBorrowETH =
                 _toETH(maxTotalBorrowIT, address(investmentToken));
+
             if (totalDebtETH.add(amountToBorrowETH) > maxTotalBorrowETH) {
                 amountToBorrowETH = maxTotalBorrowETH > totalDebtETH
                     ? maxTotalBorrowETH.sub(totalDebtETH)
@@ -472,20 +451,6 @@ contract Strategy is BaseStrategy {
         // nothing to do since debt cannot be migrated
     }
 
-    function harvestTrigger(uint256 callCost)
-        public
-        view
-        override
-        returns (bool)
-    {
-        // we harvest if:
-        // 1. stakedAave is ready to be converted to Aave and sold
-
-        return
-            _checkCooldown() ||
-            super.harvestTrigger(_fromETH(callCost, address(want)));
-    }
-
     function tendTrigger(uint256 callCost) public view override returns (bool) {
         // we adjust position if:
         // 1. LTV ratios are not in the HEALTHY range (either we take on more debt or repay debt)
@@ -508,14 +473,13 @@ contract Strategy is BaseStrategy {
         uint256 warningLTV = _getWarningLTV(currentLiquidationThreshold);
 
         return
-            AaveLenderBorrowerLib.shouldRebalance(
+            GeistLenderBorrowerLib.shouldRebalance(
                 address(investmentToken),
                 acceptableCostsRay,
                 targetLTV,
                 warningLTV,
                 totalCollateralETH,
-                totalDebtETH,
-                maxGasPriceToTend
+                totalDebtETH
             );
     }
 
@@ -566,60 +530,35 @@ contract Strategy is BaseStrategy {
     }
 
     function _claimRewards() internal {
-        if (isInvestmentTokenIncentivised || isWantIncentivised) {
-            // redeem AAVE from stkAave
-            uint256 stkAaveBalance =
-                IERC20(address(stkAave)).balanceOf(address(this));
+        // Nothing to claim if no token is incentivized
+        if (!isInvestmentTokenIncentivised && !isWantIncentivised) {
+            return;
+        }
 
-            if (stkAaveBalance > 0 && _checkCooldown()) {
-                // claim AAVE rewards
-                stkAave.claimRewards(address(this), type(uint256).max);
-                stkAave.redeem(address(this), stkAaveBalance);
-            }
+        // claim rewards
+        // only add to assets those assets that are incentivised
+        address[] memory assets;
+        if (isInvestmentTokenIncentivised && isWantIncentivised) {
+            assets = new address[](2);
+            assets[0] = address(aToken);
+            assets[1] = address(variableDebtToken);
+        } else if (isInvestmentTokenIncentivised) {
+            assets = new address[](1);
+            assets[0] = address(variableDebtToken);
+        } else if (isWantIncentivised) {
+            assets = new address[](1);
+            assets[0] = address(aToken);
+        }
 
-            // sell AAVE for want
-            // a minimum balance of 0.01 AAVE is required
-            uint256 aaveBalance = IERC20(AAVE).balanceOf(address(this));
-            if (aaveBalance > 1e15) {
-                _sellAForB(aaveBalance, address(AAVE), address(want));
-            }
+        _incentivesController().claim(address(this), assets);
 
-            // claim rewards
-            // only add to assets those assets that are incentivised
-            address[] memory assets;
-            if (isInvestmentTokenIncentivised && isWantIncentivised) {
-                assets = new address[](2);
-                assets[0] = address(aToken);
-                assets[1] = address(variableDebtToken);
-            } else if (isInvestmentTokenIncentivised) {
-                assets = new address[](1);
-                assets[0] = address(variableDebtToken);
-            } else if (isWantIncentivised) {
-                assets = new address[](1);
-                assets[0] = address(aToken);
-            }
+        // Exit with 50% penalty
+        IMultiFeeDistribution(_incentivesController().rewardMinter()).exit();
 
-            _incentivesController().claimRewards(
-                assets,
-                type(uint256).max,
-                address(this)
-            );
-
-            // request start of cooldown period
-            uint256 cooldownStartTimestamp =
-                IStakedAave(stkAave).stakersCooldowns(address(this));
-            uint256 COOLDOWN_SECONDS = IStakedAave(stkAave).COOLDOWN_SECONDS();
-            uint256 UNSTAKE_WINDOW = IStakedAave(stkAave).UNSTAKE_WINDOW();
-            if (
-                IERC20(address(stkAave)).balanceOf(address(this)) > 0 &&
-                (cooldownStartTimestamp == 0 ||
-                    block.timestamp >
-                    cooldownStartTimestamp.add(COOLDOWN_SECONDS).add(
-                        UNSTAKE_WINDOW
-                    ))
-            ) {
-                stkAave.cooldown();
-            }
+        // a minimum balance of 0.01 GEIST is required
+        uint256 geistBalance = IERC20(GEIST).balanceOf(address(this));
+        if (geistBalance > 1e15) {
+            _sellAForB(geistBalance, address(GEIST), address(want));
         }
     }
 
@@ -677,7 +616,7 @@ contract Strategy is BaseStrategy {
         uint256 targetLTV = _getTargetLTV(currentLiquidationThreshold);
         uint256 amountETH = _toETH(amount, address(want));
         return
-            AaveLenderBorrowerLib.calculateAmountToRepay(
+            GeistLenderBorrowerLib.calculateAmountToRepay(
                 amountETH,
                 totalCollateralETH,
                 totalDebtETH,
@@ -696,15 +635,6 @@ contract Strategy is BaseStrategy {
         ILendingPool lp = _lendingPool();
         _checkAllowance(address(lp), address(want), amount);
         lp.deposit(address(want), amount, address(this), referral);
-    }
-
-    function _checkCooldown() internal view returns (bool) {
-        return
-            AaveLenderBorrowerLib.checkCooldown(
-                isWantIncentivised,
-                isInvestmentTokenIncentivised,
-                address(stkAave)
-            );
     }
 
     function _checkAllowance(
@@ -737,23 +667,24 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    // ----------------- INTERNAL CALCS -----------------
-    function balanceOfWant() internal view returns (uint256) {
+    // ----------------- CALCS -----------------
+    function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
-    function balanceOfInvestmentToken() internal view returns (uint256) {
+    function balanceOfInvestmentToken() public view returns (uint256) {
         return investmentToken.balanceOf(address(this));
     }
 
-    function balanceOfAToken() internal view returns (uint256) {
+    function balanceOfAToken() public view returns (uint256) {
         return aToken.balanceOf(address(this));
     }
 
-    function balanceOfDebt() internal view returns (uint256) {
+    function balanceOfDebt() public view returns (uint256) {
         return variableDebtToken.balanceOf(address(this));
     }
 
+    // ----------------- INTERNAL CALCS -----------------
     function _valueOfInvestment() internal view returns (uint256) {
         return
             yVault.balanceOf(address(this)).mul(yVault.pricePerShare()).div(
@@ -810,15 +741,15 @@ contract Strategy is BaseStrategy {
         pure
         returns (address[] memory _path)
     {
-        bool is_weth =
-            _token_in == address(WETH) || _token_out == address(WETH);
-        _path = new address[](is_weth ? 2 : 3);
+        bool is_wftm =
+            _token_in == address(WFTM) || _token_out == address(WFTM);
+        _path = new address[](is_wftm ? 2 : 3);
         _path[0] = _token_in;
 
-        if (is_weth) {
+        if (is_wftm) {
             _path[1] = _token_out;
         } else {
-            _path[1] = address(WETH);
+            _path[1] = address(WFTM);
             _path[2] = _token_out;
         }
     }
@@ -862,14 +793,7 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        if (
-            _amount == 0 ||
-            _amount == type(uint256).max ||
-            address(asset) == address(WETH) // 1:1 change
-        ) {
-            return _amount;
-        }
-        return AaveLenderBorrowerLib.toETH(_amount, asset);
+        return GeistLenderBorrowerLib.toETH(_amount, asset);
     }
 
     function ethToWant(uint256 _amtInWei)
@@ -878,7 +802,26 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256)
     {
-        return _fromETH(_amtInWei, address(want));
+        if (address(want) == address(WFTM)) {
+            return _amtInWei;
+        }
+
+        // _amtInWei denominated in USD
+        uint256 amtInUSD = _toETH(_amtInWei, address(WFTM));
+
+        // One unit of want in USD
+        uint256 wantInUSD =
+            _toETH(
+                uint256(10)**uint256(IOptionalERC20(address(want)).decimals()),
+                address(want)
+            );
+
+        return
+            amtInUSD
+                .mul(
+                uint256(10)**uint256(IOptionalERC20(address(want)).decimals())
+            )
+                .div(wantInUSD);
     }
 
     function _fromETH(uint256 _amount, address asset)
@@ -886,20 +829,13 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        if (
-            _amount == 0 ||
-            _amount == type(uint256).max ||
-            address(asset) == address(WETH) // 1:1 change
-        ) {
-            return _amount;
-        }
-        return AaveLenderBorrowerLib.fromETH(_amount, asset);
+        return GeistLenderBorrowerLib.fromETH(_amount, asset);
     }
 
     // ----------------- INTERNAL SUPPORT GETTERS -----------------
 
     function _lendingPool() internal view returns (ILendingPool lendingPool) {
-        return AaveLenderBorrowerLib.lendingPool();
+        return GeistLenderBorrowerLib.lendingPool();
     }
 
     function _protocolDataProvider()
@@ -907,20 +843,20 @@ contract Strategy is BaseStrategy {
         view
         returns (IProtocolDataProvider protocolDataProvider)
     {
-        return AaveLenderBorrowerLib.protocolDataProvider;
+        return GeistLenderBorrowerLib.protocolDataProvider;
     }
 
     function _priceOracle() internal view returns (IPriceOracle) {
-        return AaveLenderBorrowerLib.priceOracle();
+        return GeistLenderBorrowerLib.priceOracle();
     }
 
     function _incentivesController()
         internal
         view
-        returns (IAaveIncentivesController)
+        returns (IGeistIncentivesController)
     {
         return
-            AaveLenderBorrowerLib.incentivesController(
+            GeistLenderBorrowerLib.incentivesController(
                 aToken,
                 variableDebtToken,
                 isWantIncentivised,

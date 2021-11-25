@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./Strategy.sol";
 
-contract AaveLenderBorrowerCloner {
+contract GeistLenderBorrowerCloner {
     address public immutable original;
 
     event Cloned(address indexed clone);
@@ -30,8 +30,7 @@ contract AaveLenderBorrowerCloner {
             _isWantIncentivised,
             _isInvestmentTokenIncentivised,
             false, // leave debt behind (default: false)
-            1, // maxLoss (default: 1)
-            60 * 1e9 // max base fee to perform non-emergency tends (default: 60 gwei)
+            1 // maxLoss (default: 1)
         );
 
         Strategy(_original).setRewards(msg.sender);
@@ -40,10 +39,10 @@ contract AaveLenderBorrowerCloner {
     }
 
     function name() external pure returns (string memory) {
-        return "Yearn-AaveLenderBorrowerCloner@0.4.3";
+        return "Yearn-GeistLenderBorrowerCloner@0.4.3";
     }
 
-    function cloneAaveLenderBorrower(
+    function cloneGeistLenderBorrower(
         address _vault,
         address _strategist,
         address _rewards,
@@ -81,8 +80,7 @@ contract AaveLenderBorrowerCloner {
             _isWantIncentivised,
             _isInvestmentTokenIncentivised,
             false, // leave debt behind (default: false)
-            1, // maxLoss (default: 1)
-            60 * 1e9 // max base fee to perform non-emergency tends (default: 60 gwei)
+            1 // maxLoss (default: 1)
         );
 
         Strategy(newStrategy).setKeeper(_keeper);

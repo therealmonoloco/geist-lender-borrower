@@ -36,7 +36,6 @@ def test_lev_ratios(
             strategy.isInvestmentTokenIncentivised(),
             strategy.leaveDebtBehind(),
             strategy.maxLoss(),
-            strategy.maxGasPriceToTend(),
             {"from": strategy.strategist()},
         )
     # should revert if targetRatio > warningRatio
@@ -51,7 +50,6 @@ def test_lev_ratios(
             strategy.isInvestmentTokenIncentivised(),
             strategy.leaveDebtBehind(),
             strategy.maxLoss(),
-            strategy.maxGasPriceToTend(),
             {"from": strategy.strategist()},
         )
 
@@ -66,7 +64,6 @@ def test_lev_ratios(
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
     # to offset interest rates and be able to repay full debt (assuming we were able to generate profit before lowering acceptableCosts)
@@ -90,7 +87,6 @@ def test_lev_ratios(
         strategy.isInvestmentTokenIncentivised(),
         strategy.leaveDebtBehind(),
         strategy.maxLoss(),
-        strategy.maxGasPriceToTend(),
         {"from": strategy.strategist()},
     )
     # to offset interest rates and be able to repay full debt (assuming we were able to generate profit before lowering acceptableCosts)
@@ -118,7 +114,7 @@ def test_lev_ratios(
 
 
 def get_lending_pool():
-    pd_provider = Contract("0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d")
+    pd_provider = Contract("0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3")
     a_provider = Contract(pd_provider.ADDRESSES_PROVIDER())
     lp = Contract(a_provider.getLendingPool())
     return lp

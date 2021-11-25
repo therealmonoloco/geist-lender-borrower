@@ -20,14 +20,13 @@ def test_rewards(
     )
     aToken = aToken
     vdToken = vdToken
-    stkAave = Contract("0x4da27a545c0c5B758a6BA100e3a049001de870f5")
 
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(500_000 * (10 ** token.decimals()), {"from": token_whale})
 
-    assert ic.getRewardsBalance([aToken], strategy) == 0
-    assert ic.getRewardsBalance([vdToken], strategy) == 0
-    assert ic.getRewardsBalance([aToken, vdToken], strategy) == 0
+    assert ic.claimableReward(strategy, [aToken])[0] == 0
+    assert ic.claimableReward(strategy, [vdToken])[0] == 0
+    assert ic.claimableReward(strategy, [aToken, vdToken]) == (0, 0)
 
     chain.sleep(1)
     strategy.harvest({"from": gov})
@@ -36,71 +35,55 @@ def test_rewards(
     chain.sleep(2 * 24 * 3600)  # 48 hours later
     chain.mine(1)
 
-    aTokenRewards = ic.getRewardsBalance([aToken], strategy)
-    vdTokenRewards = ic.getRewardsBalance([vdToken], strategy)
+    aTokenRewards = ic.claimableReward(strategy, [aToken])[0]
+    vdTokenRewards = ic.claimableReward(strategy, [vdToken])[0]
     if token_incentivised:
         assert aTokenRewards > 0
     if borrow_incentivised:
         assert vdTokenRewards > 0
-    assert (
-        ic.getRewardsBalance([aToken, vdToken], strategy)
-        == vdTokenRewards + aTokenRewards
+    assert ic.claimableReward(strategy, [aToken, vdToken]) == (
+        aTokenRewards,
+        vdTokenRewards,
     )
-
-    assert stkAave.stakersCooldowns(strategy) == 0
 
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    aTokenRewards = ic.getRewardsBalance([aToken], strategy)
-    vdTokenRewards = ic.getRewardsBalance([vdToken], strategy)
+    aTokenRewards = ic.claimableReward(strategy, [aToken])[0]
+    vdTokenRewards = ic.claimableReward(strategy, [vdToken])[0]
     assert aTokenRewards == 0
     assert vdTokenRewards == 0
-    assert stkAave.balanceOf(strategy) > 0
-    assert stkAave.stakersCooldowns(strategy) != 0
+
     # Send some profit to yvault
     borrow_token.transfer(
         yvault, 20_000 * (10 ** borrow_token.decimals()), {"from": borrow_whale}
     )
 
-    # NOTE: This expectation seems to be too volatile and unreliable.
-    # assert strategy.harvestTrigger(Wei("1 ether")) == False
-    chain.sleep(10 * 24 * 3600 + 1)  # a bit over 10 days passes
-    chain.mine(1)
     assert strategy.harvestTrigger(Wei("1 ether")) == True
 
-    accumulatedRewards = ic.getRewardsBalance([vdToken, aToken], strategy)
+    accumulatedRewards = ic.claimableReward(strategy, [vdToken, aToken])
     if borrow_incentivised or token_incentivised:
-        assert accumulatedRewards > 0
+        assert sum(accumulatedRewards) > 0
 
     chain.sleep(1)
+    print(ic.claimableReward(strategy, [vdToken, aToken]))
+
     tx = strategy.harvest({"from": gov})
+
+    print(ic.claimableReward(strategy, [vdToken, aToken]))
+
+    if borrow_incentivised or token_incentivised:
+        assert sum(ic.claimableReward(strategy, [vdToken, aToken])) == 0
 
     # Send some profit to yvault
     borrow_token.transfer(
         yvault, 20_000 * (10 ** borrow_token.decimals()), {"from": borrow_whale}
     )
-    assert stkAave.balanceOf(strategy) >= accumulatedRewards
-    assert strategy.harvestTrigger(Wei("1 ether")) == False
-    assert (
-        tx.events["Swap"][0]["amount0In"]
-        == tx.events["Redeem"][0]["amount"] + tx.events["RewardsClaimed"][0]["amount"]
-    )
-    assert tx.events["RewardsClaimed"][0]["amount"] > 0
-    assert tx.events["RewardsClaimed"][1]["amount"] > 0
-    assert tx.events["Harvested"]["profit"] > 0
 
-    # let harvest trigger during cooldown period
-    chain.sleep(5 * 24 * 3600)  # 5 days
-    chain.mine(1)
-    # not working because rewards are off at the moment (expected to come back)
-    # https://app.aave.com/governance/15-QmfYfZhLe5LYpCocm1JxdJ7sajV1QTjrK5UCF1TGe5HTfy
-    assert stkAave.getTotalRewardsBalance(strategy) > 0
+    assert tx.events["Harvested"]["profit"] > 0
 
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
     assert tx.events["Harvested"]
-    # rewards off (expected to come back)
-    # assert len(tx.events["RewardsClaimed"]) == 2
 
 
 def get_incentives_controller(aToken, vdToken, token_incentivised, borrow_incentivised):

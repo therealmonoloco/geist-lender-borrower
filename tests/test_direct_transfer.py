@@ -42,25 +42,8 @@ def test_borrow_token_transfer_sends_to_yvault(
     assert borrow_token.balanceOf(strategy) == 0
 
 
-def test_borrow_token_transfer_increments_yshares(
-    vault, yvault, strategy, token, token_whale, borrow_token, borrow_whale, gov
-):
-    token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(500_000 * (10 ** token.decimals()), {"from": token_whale})
-
-    chain.sleep(1)
-    strategy.harvest({"from": gov})
-    initialBalance = yvault.balanceOf(strategy)
-
-    amount = 1_000 * (10 ** borrow_token.decimals())
-    borrow_token.transfer(strategy, amount, {"from": borrow_whale})
-
-    strategy.harvest({"from": gov})
-    assert yvault.balanceOf(strategy) > initialBalance
-
-
 def test_borrow_token_transfer_increments_profits(
-    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov, AaveLibrary
+    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov, GeistLibrary
 ):
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(500_000 * (10 ** token.decimals()), {"from": token_whale})
@@ -72,8 +55,8 @@ def test_borrow_token_transfer_increments_profits(
     borrow_token.transfer(strategy, amount, {"from": borrow_whale})
     strategy.harvest({"from": gov})
 
-    transferInEth = AaveLibrary.toETH(amount, borrow_token)
-    transferInWant = AaveLibrary.fromETH(transferInEth, token)
+    transferInEth = GeistLibrary.toETH(amount, borrow_token)
+    transferInWant = GeistLibrary.fromETH(transferInEth, token)
 
     chain.sleep(60)  # wait a minute!
     chain.mine(1)

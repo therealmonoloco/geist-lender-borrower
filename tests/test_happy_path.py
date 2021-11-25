@@ -5,7 +5,7 @@ from brownie import chain, reverts, Contract
 def test_happy_path(
     vault, strategy, gov, token, token_whale, borrow_token, borrow_whale, yvault
 ):
-    pd_provider = Contract("0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d")
+    pd_provider = Contract("0xf3B0611e2E4D2cd6aB4bb3e01aDe211c3f42A8C3")
     a_provider = Contract(pd_provider.ADDRESSES_PROVIDER())
     lp = Contract(a_provider.getLendingPool())
     prev_balance = token.balanceOf(token_whale)
@@ -26,7 +26,7 @@ def test_happy_path(
 
     # Send some profit to yvault
     borrow_token.transfer(
-        yvault, 20_000 * (10 ** borrow_token.decimals()), {"from": borrow_whale}
+        yvault, 30_000 * (10 ** borrow_token.decimals()), {"from": borrow_whale}
     )
 
     # TODO: check profits before and after
